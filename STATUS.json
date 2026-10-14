@@ -1,0 +1,13 @@
+{
+  "project": "Termux Manager Android",
+  "version": "0.1.0-alpha.1",
+  "integration_build_number": 1,
+  "termux_source": "termux/termux-app master (fetched by GitHub Actions)",
+  "termux_manager_source": "drilemoz/TermuxManager main (fetched by GitHub Actions)",
+  "observed_manager_version": "1.0.106",
+  "observed_termux_app_version": "0.118.0",
+  "observed_termux_app_version_code": 118,
+  "compile_status": "not-run",
+  "device_test_status": "not-run",
+  "source_integration_tests": "passed-local-fixtures"
+}

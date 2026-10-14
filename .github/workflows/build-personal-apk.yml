@@ -1,0 +1,89 @@
+name: Gerar Termux Manager APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'integration/**'
+      - 'tools/**'
+      - '.github/workflows/build-personal-apk.yml'
+      - 'BUILD_NUMBER'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Obter projeto de integração
+        uses: actions/checkout@v4
+        with:
+          path: custom
+
+      - name: Obter Termux oficial
+        uses: actions/checkout@v4
+        with:
+          repository: termux/termux-app
+          ref: master
+          path: upstream
+
+      - name: Obter TermuxManager
+        uses: actions/checkout@v4
+        with:
+          repository: drilemoz/TermuxManager
+          ref: main
+          path: manager-src
+
+      - name: Preparar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Preparar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar NDK e plataformas necessárias
+        shell: bash
+        run: |
+          sdkmanager --install 'ndk;29.0.14206865' 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Conferir sintaxe e integrar os projetos
+        shell: bash
+        run: |
+          python3 custom/tools/validate_sources.py --manager manager-src
+          BUILD_NUMBER="$(cat custom/BUILD_NUMBER | tr -d '[:space:]')"
+          python3 custom/tools/integrate.py \
+            --termux upstream --manager manager-src --build-number "$BUILD_NUMBER"
+
+      - name: Compilar APK Android
+        shell: bash
+        working-directory: upstream
+        env:
+          TERMUX_SPLIT_APKS_FOR_DEBUG_BUILDS: '0'
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Registrar versões e commits de origem
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p build-metadata
+          printf 'Termux source: %s\n' "$(git -C upstream rev-parse HEAD 2>/dev/null || echo unknown)" > build-metadata/origins.txt
+          printf 'TermuxManager source: %s\n' "$(git -C manager-src rev-parse HEAD 2>/dev/null || echo unknown)" >> build-metadata/origins.txt
+          printf 'Integration source: %s\n' "$(git -C custom rev-parse HEAD 2>/dev/null || echo unknown)" >> build-metadata/origins.txt
+          cat custom/BUILD_NUMBER >> build-metadata/origins.txt
+
+      - name: Publicar APK e rastreabilidade nos Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Termux-Manager-personal-build-${{ github.run_number }}
+          path: |
+            upstream/app/build/outputs/apk/debug/*.apk
+            build-metadata/origins.txt
+          if-no-files-found: warn
