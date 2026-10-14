@@ -1,4 +1,4 @@
-# Termux Manager Android | 0.1.0-alpha.1
+# Termux Manager Android | 0.1.0-alpha.2
 
 Projeto de **integração para APK Android de uso particular**, com o terminal oficial do Termux e uma cópia integrada do [TermuxManager](https://github.com/drilemoz/TermuxManager). O projeto **não contém nem distribui o APK oficial ou todo o código do Termux**. O workflow obtém os dois projetos públicos no momento da compilação.
 
@@ -11,12 +11,13 @@ Projeto de **integração para APK Android de uso particular**, com o terminal o
 ## Como compilar pelo GitHub Actions
 
 1. Crie um repositório **privado** novo, por exemplo `Termux-Manager-Android`.
-2. Envie o conteúdo **interno desta pasta** à raiz do repositório, mantendo a pasta `.github/workflows`.
+2. Envie o conteúdo **interno desta pasta** à raiz do repositório existente, substituindo os arquivos anteriores e mantendo `.github/workflows` (inclusive arquivos e pastas ocultos).
 3. Acesse **Actions → Gerar Termux Manager APK → Run workflow**; a compilação também é acionada em `push` na branch `main` quando os arquivos do projeto mudam.
 4. O workflow baixa `termux/termux-app` (`master`) e `drilemoz/TermuxManager` (`main`), verifica os hashes e a sintaxe do Manager, aplica a integração, baixa o bootstrap oficial com conferência SHA-256 feita pelo Gradle do Termux e executa `:app:assembleDebug`.
-5. Se a compilação for aprovada, baixe o APK em **Actions → workflow → Artifacts**, que também traz o arquivo `origins.txt` com os commits utilizados.
+5. Se a compilação for aprovada, baixe o pacote **Termux-Manager-APK-build-N** em **Actions → workflow → Artifacts**. Ele contém o APK e `origins.txt`.
+6. Quando houver erro, será enviado apenas **Termux-Manager-DIAGNOSTICO-build-N**. Esse artifact **não contém APK**. O SDK é preparado com `android-actions/setup-android@v4`, explicitando `packages: platform-tools` para não solicitar o pacote removido `tools`.
 
-O `BUILD_NUMBER` começa em `1` (APK `versionCode` calculado como `Termux versionCode * 1000 + BUILD_NUMBER`). Aumente esse número em builds que precisem instalar como atualização da versão anterior; a chave de assinatura também precisa permanecer a mesma.
+O `BUILD_NUMBER` está em `2` (APK `versionCode` calculado como `Termux versionCode * 1000 + BUILD_NUMBER`). Aumente esse número em builds que precisem instalar como atualização da versão anterior; a chave de assinatura também precisa permanecer a mesma.
 
 > Por segurança, o APK Debug criado com a chave pública de teste que já acompanha o repositório oficial **não deve ser distribuído como uma versão confiável de produção**. Para atualizações pessoais estáveis e assinatura realmente privada, configurar uma keystore própria em uma próxima etapa.
 
@@ -60,6 +61,7 @@ O repositório fornecido é `drilemoz/TermuxManager`, mas `install.sh`, `manager
 ```bash
 python3 -m unittest discover -s tests -p 'test_integration.py' -v
 python3 tests/test_java_bundle.py
+python3 -m unittest discover -s tests -p 'test_workflow.py' -v
 ```
 
 Este ZIP é uma **base de integração / projeto de construção**, não um APK pronto e não comprova que o Gradle ou um aparelho Android tenham sido testados com sucesso. Compilações futuras devem ser verificadas nos logs do Actions e no telefone antes de substituir uma instalação anterior.
@@ -70,3 +72,7 @@ Este ZIP é uma **base de integração / projeto de construção**, não um APK 
 - TermuxManager: https://github.com/drilemoz/TermuxManager
 
 O projeto de integração contém arquivos próprios; os direitos e licenças dos componentes originais devem continuar sendo respeitados. A modificação privada é permitida pela GPLv3 do Termux; redistribuição do APK pode criar obrigações adicionais.
+
+## Correção alpha.2 (workflow #1)
+
+O primeiro workflow (14/10/2026) parou no `android-actions/setup-android@v3`, que tentava instalar o pacote SDK Android obsoleto `tools` e retornou `Failed to find package 'tools'`. O código Android **não chegou a compilar**. A alpha.2 usa `android-actions/setup-android@v4`, com apenas `platform-tools` na configuração inicial e instalação separada de NDK, plataforma e build-tools. O workflow agora executa testes prévios e diferencia um APK realmente produzido de um arquivo exclusivo de diagnóstico.

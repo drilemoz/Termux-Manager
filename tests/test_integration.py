@@ -51,13 +51,13 @@ class TermuxInstaller {
     def test_integration_and_origin_patch(self):
         with tempfile.TemporaryDirectory() as temp:
             app, manager = self.make_fixture(Path(temp))
-            integrate.integrate(app, manager, 1)
+            integrate.integrate(app, manager, 2)
             installer = (app / integrate.INSTALLER).read_text()
             self.assertIn('TermuxManagerBundle.install(activity);', installer)
             self.assertEqual(installer.count('TermuxManagerBundle.install(activity);'), 1)
             gradle = (app / 'app/build.gradle').read_text()
-            self.assertIn('versionCode 118001', gradle)
-            self.assertIn('versionName "0.118.0+tm.1"', gradle)
+            self.assertIn('versionCode 118002', gradle)
+            self.assertIn('versionName "0.118.0+tm.2"', gradle)
             self.assertIn('Termux Manager', (app/'app/src/main/res/values/strings.xml').read_text())
             with zipfile.ZipFile(app / integrate.ASSET) as z:
                 self.assertIn('manager.sh', z.namelist())
@@ -67,7 +67,7 @@ class TermuxInstaller {
                 for n, digest in m['files'].items():
                     self.assertEqual(hashlib.sha256(z.read(n)).hexdigest(),digest)
             with self.assertRaises(RuntimeError):
-                integrate.integrate(app, manager, 1)  # refuse double patch
+                integrate.integrate(app, manager, 2)  # refuse double patch
 
     def test_mismatch_aborts_and_preserves_upstream(self):
         with tempfile.TemporaryDirectory() as temp:

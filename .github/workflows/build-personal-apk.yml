@@ -44,12 +44,29 @@ jobs:
           java-version: '17'
 
       - name: Preparar Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+
+      - name: Conferir ambiente Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v sdkmanager
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
+          sdkmanager --version
 
       - name: Instalar NDK e plataformas necessárias
         shell: bash
         run: |
+          set -euo pipefail
           sdkmanager --install 'ndk;29.0.14206865' 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Testar integrador e instalador localmente
+        shell: bash
+        run: |
+          python3 -m unittest discover -s custom/tests -p 'test_*.py' -v
+          python3 custom/tests/test_java_bundle.py
 
       - name: Conferir sintaxe e integrar os projetos
         shell: bash
@@ -78,12 +95,20 @@ jobs:
           printf 'Integration source: %s\n' "$(git -C custom rev-parse HEAD 2>/dev/null || echo unknown)" >> build-metadata/origins.txt
           cat custom/BUILD_NUMBER >> build-metadata/origins.txt
 
-      - name: Publicar APK e rastreabilidade nos Artifacts
-        if: always()
+      - name: Publicar APK compilado
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Termux-Manager-personal-build-${{ github.run_number }}
+          name: Termux-Manager-APK-build-${{ github.run_number }}
           path: |
             upstream/app/build/outputs/apk/debug/*.apk
             build-metadata/origins.txt
+          if-no-files-found: error
+
+      - name: Publicar apenas diagnóstico quando falhar
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Termux-Manager-DIAGNOSTICO-build-${{ github.run_number }}
+          path: build-metadata/origins.txt
           if-no-files-found: warn
