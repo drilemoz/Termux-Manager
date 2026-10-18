@@ -9,6 +9,10 @@ on:
       - 'tools/**'
       - '.github/workflows/build-personal-apk.yml'
       - 'BUILD_NUMBER'
+      - 'vendor/**'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'STATUS.json'
 
 permissions:
   contents: read
@@ -27,15 +31,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: termux/termux-app
-          ref: master
+          # Pinned verified source. Update deliberately to a reviewed commit.
+          ref: 8629e632fcb95da272221be327db653fb24befe9
           path: upstream
 
-      - name: Obter TermuxManager
-        uses: actions/checkout@v4
-        with:
-          repository: drilemoz/TermuxManager
-          ref: main
-          path: manager-src
+      - name: Preparar TermuxManager 1.0.126 verificado
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd custom/vendor && sha256sum --check SHA256SUMS)
+          mkdir -p manager-src
+          unzip -oq custom/vendor/TermuxManager-v1.0.126.zip -d manager-src
+          test -f manager-src/MANIFEST.json
+          python3 -c 'import json; assert json.load(open("manager-src/MANIFEST.json"))["version"] == "1.0.126"'
 
       - name: Preparar Java 17
         uses: actions/setup-java@v4
@@ -76,14 +84,42 @@ jobs:
           python3 custom/tools/integrate.py \
             --termux upstream --manager manager-src --build-number "$BUILD_NUMBER"
 
+      - name: Exigir assinatura privada e preparar keystore
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for secret in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [[ -z "${!secret:-}" ]]; then
+              echo "::error::Secret de assinatura obrigatório não configurado: $secret"
+              exit 1
+            fi
+          done
+          export TM_KEYSTORE_FILE="$RUNNER_TEMP/termux-manager-signing.p12"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$TM_KEYSTORE_FILE"
+          test -s "$TM_KEYSTORE_FILE"
+          chmod 600 "$TM_KEYSTORE_FILE"
+          # Path only, never write secret values into GITHUB_ENV or artifacts.
+          echo "TM_KEYSTORE_FILE=$TM_KEYSTORE_FILE" >> "$GITHUB_ENV"
+
       - name: Compilar APK Android
         shell: bash
         working-directory: upstream
         env:
           TERMUX_SPLIT_APKS_FOR_DEBUG_BUILDS: '0'
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
           ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -type f | head -n 1)"
+          test -n "$APK" && test -s "$APK"
+          "${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
 
       - name: Registrar versões e commits de origem
         if: always()
@@ -91,7 +127,7 @@ jobs:
         run: |
           mkdir -p build-metadata
           printf 'Termux source: %s\n' "$(git -C upstream rev-parse HEAD 2>/dev/null || echo unknown)" > build-metadata/origins.txt
-          printf 'TermuxManager source: %s\n' "$(git -C manager-src rev-parse HEAD 2>/dev/null || echo unknown)" >> build-metadata/origins.txt
+          printf 'TermuxManager source: bundled v1.0.126, SHA256: %s\n' "$(sha256sum custom/vendor/TermuxManager-v1.0.126.zip | cut -d' ' -f1)" >> build-metadata/origins.txt
           printf 'Integration source: %s\n' "$(git -C custom rev-parse HEAD 2>/dev/null || echo unknown)" >> build-metadata/origins.txt
           cat custom/BUILD_NUMBER >> build-metadata/origins.txt
 

@@ -1,0 +1,21 @@
+# Signing / secrets. Never commit production keys.
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.env
+*.env.*
+keystore-base64.txt
+*Secrets-IMPORTAR*.txt
+*Secrets-IMPORTAR*.json
+
+# Build and runtime output
+.gradle/
+build/
+**/build/
+__pycache__/
+*.pyc
+*.apk
+*.aab
+upstream/
+manager-src/
