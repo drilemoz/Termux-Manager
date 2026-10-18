@@ -34,6 +34,8 @@ final class TermuxManagerBundle {
     private static final String ZIP_ASSET = "termux-manager.bundle.zip";
     private static final String INDEX_ASSET = "termux-manager.bundle-index.tsv";
     private static final String INSTALLED_MARKER = ".termux-manager-bundle-installed";
+    private static final String VERSION_INDEX_MARKER = ".termux-manager-file-index.tsv";
+    private static final String LEGACY_INDEX_ASSET = "termux-manager.legacy-index-1.0.126.tsv";
     private static final String TERMINAL_PALETTE =
         "background=#012456\nforeground=#CCCCCC\ncursor=#FFFFFF\n";
     private static final String AUTOSTART_MARKER = "# TERMUX_MANAGER_BUNDLE_AUTOSTART_V1";
@@ -71,7 +73,14 @@ final class TermuxManagerBundle {
         }
 
         Map<String, String> index = readIndex(context);
-        if (!target.exists() || needsManagedRepair(target, index)) {
+        boolean managed = new File(target, INSTALLED_MARKER).isFile();
+        // For an existing managed installation, compare the installed index to
+        // the new index; only unmodified old files may be replaced. Untracked
+        // user installations are always left intact.
+        boolean needsUpdate = !target.exists() || (managed &&
+                (!index.equals(readPreviousIndex(context, target)) ||
+                 needsManagedRepair(target, index)));
+        if (needsUpdate) {
             File staging = File.createTempFile(".termux-manager-stage-", ".tmp", parent);
             if (!staging.delete() || !staging.mkdir()) {
                 throw new IOException("Cannot initialize temporary Manager directory");
@@ -84,11 +93,15 @@ final class TermuxManagerBundle {
                 main.setExecutable(true, true);
                 if (!target.exists()) {
                     writeFile(new File(staging, INSTALLED_MARKER), "bundled\n", false);
+                    writeFile(new File(staging, VERSION_INDEX_MARKER), serializeIndex(index), false);
                     if (!staging.renameTo(target)) throw new IOException("Cannot commit Manager directory");
                     committed = true;
-                } else if (target.isDirectory()) {
-                    // Only files missing from installations previously created by us.
-                    restoreMissing(staging, target, index.keySet());
+                } else if (managed && target.isDirectory()) {
+                    Map<String, String> previous = readPreviousIndex(context, target);
+                    restoreAndUpgrade(staging, target, previous, index);
+                    // Commit the baseline last. Even if a file is user-edited,
+                    // it stays untouched because its hash will not match this.
+                    writeFile(new File(target, VERSION_INDEX_MARKER), serializeIndex(index), false);
                 }
             } finally {
                 if (!committed) deleteRecursively(staging);
@@ -127,21 +140,88 @@ final class TermuxManagerBundle {
         return false;
     }
 
-    private static void restoreMissing(File src, File target, Set<String> files) throws IOException {
-        for (String name : files) {
-            File dest = new File(target, name);
-            if (dest.exists()) continue;
-            File from = new File(src, name);
-            String base = target.getCanonicalPath() + File.separator;
-            if (!dest.getCanonicalPath().startsWith(base)) throw new IOException("Unsafe recovery path");
-            if (!mkdirs(dest.getParentFile())) throw new IOException("Cannot restore Manager directory");
-            try (InputStream in = new FileInputStream(from);
-                 OutputStream out = new FileOutputStream(dest)) {
-                byte[] buffer = new byte[8192];
-                int n;
-                while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+    private static String serializeIndex(Map<String, String> index) {
+        java.util.List<String> names = new java.util.ArrayList<>(index.keySet());
+        java.util.Collections.sort(names);
+        StringBuilder result = new StringBuilder();
+        for (String name : names) result.append(name).append('\t').append(index.get(name)).append('\n');
+        return result.toString();
+    }
+
+    private static Map<String, String> parseIndex(String source) throws IOException {
+        Map<String, String> index = new HashMap<>();
+        for (String line : source.split("\n")) {
+            if (line.isEmpty()) continue;
+            String[] pieces = line.split("\t", -1);
+            if (pieces.length != 2 || !isSafeName(pieces[0]) ||
+                    !pieces[1].matches("[0-9a-f]{64}") || index.put(pieces[0], pieces[1]) != null) {
+                throw new IOException("Malformed Manager index");
             }
-            if (name.equals("manager.sh")) dest.setExecutable(true, true);
+        }
+        return index;
+    }
+
+    private static Map<String, String> readPreviousIndex(Context context, File target) throws IOException {
+        File marker = new File(target, VERSION_INDEX_MARKER);
+        if (marker.isFile()) return parseIndex(readSmallText(marker));
+        // alpha.3 had a bundled marker but did not retain per-file hashes.
+        // This independently packed index is the baseline of that release.
+        try (InputStream in = context.getAssets().open(LEGACY_INDEX_ASSET)) {
+            java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int n;
+            while ((n = in.read(buffer)) != -1) {
+                if (output.size() + n > 256 * 1024) throw new IOException("Legacy index too large");
+                output.write(buffer, 0, n);
+            }
+            return parseIndex(new String(output.toByteArray(), StandardCharsets.UTF_8));
+        }
+    }
+
+    private static void restoreAndUpgrade(File staged, File target,
+                    Map<String, String> previous, Map<String, String> current) throws IOException {
+        String base = target.getCanonicalPath() + File.separator;
+        for (Map.Entry<String, String> entry : current.entrySet()) {
+            String name = entry.getKey();
+            File destination = new File(target, name);
+            if (!destination.getCanonicalPath().startsWith(base)) throw new IOException("Unsafe update path");
+            File source = new File(staged, name);
+            if (!destination.exists()) {
+                safelyReplaceFile(source, destination);
+            } else if (destination.isFile() && previous.containsKey(name) &&
+                    previous.get(name).equals(sha256(destination)) &&
+                    !entry.getValue().equals(sha256(destination))) {
+                safelyReplaceFile(source, destination);
+            } // User-changed or untracked files are preserved.
+        }
+    }
+
+    private static void safelyReplaceFile(File source, File destination) throws IOException {
+        if (!mkdirs(destination.getParentFile())) throw new IOException("Cannot create Manager subdirectory");
+        File candidate = File.createTempFile(".tm-install-", ".tmp", destination.getParentFile());
+        try {
+            try (InputStream input = new FileInputStream(source);
+                 OutputStream output = new FileOutputStream(candidate)) {
+                byte[] data = new byte[8192];
+                int n;
+                while ((n = input.read(data)) != -1) output.write(data, 0, n);
+            }
+            if (destination.exists()) {
+                File backup = File.createTempFile(".tm-backup-", ".tmp", destination.getParentFile());
+                if (!backup.delete() || !destination.renameTo(backup)) {
+                    throw new IOException("Cannot backup existing managed file: " + destination);
+                }
+                if (!candidate.renameTo(destination)) {
+                    if (!backup.renameTo(destination)) throw new IOException("Could not restore backup: " + backup);
+                    throw new IOException("Could not upgrade managed file: " + destination);
+                }
+                if (!backup.delete()) Logger.logError(TAG, "Could not delete backup " + backup);
+            } else if (!candidate.renameTo(destination)) {
+                throw new IOException("Cannot commit managed file: " + destination);
+            }
+            if (destination.getName().endsWith(".sh")) destination.setExecutable(true, true);
+        } finally {
+            candidate.delete();
         }
     }
 

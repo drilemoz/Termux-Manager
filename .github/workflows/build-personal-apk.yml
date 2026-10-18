@@ -35,15 +35,15 @@ jobs:
           ref: 8629e632fcb95da272221be327db653fb24befe9
           path: upstream
 
-      - name: Preparar TermuxManager 1.0.126 verificado
+      - name: Preparar TermuxManager 1.0.128 verificado
         shell: bash
         run: |
           set -euo pipefail
           (cd custom/vendor && sha256sum --check SHA256SUMS)
           mkdir -p manager-src
-          unzip -oq custom/vendor/TermuxManager-v1.0.126.zip -d manager-src
+          unzip -oq custom/vendor/TermuxManager-v1.0.128.zip -d manager-src
           test -f manager-src/MANIFEST.json
-          python3 -c 'import json; assert json.load(open("manager-src/MANIFEST.json"))["version"] == "1.0.126"'
+          python3 -c 'import json; assert json.load(open("manager-src/MANIFEST.json"))["version"] == "1.0.128"'
 
       - name: Preparar Java 17
         uses: actions/setup-java@v4
@@ -127,7 +127,7 @@ jobs:
         run: |
           mkdir -p build-metadata
           printf 'Termux source: %s\n' "$(git -C upstream rev-parse HEAD 2>/dev/null || echo unknown)" > build-metadata/origins.txt
-          printf 'TermuxManager source: bundled v1.0.126, SHA256: %s\n' "$(sha256sum custom/vendor/TermuxManager-v1.0.126.zip | cut -d' ' -f1)" >> build-metadata/origins.txt
+          printf 'TermuxManager source: bundled v1.0.128, SHA256: %s\n' "$(sha256sum custom/vendor/TermuxManager-v1.0.128.zip | cut -d' ' -f1)" >> build-metadata/origins.txt
           printf 'Integration source: %s\n' "$(git -C custom rev-parse HEAD 2>/dev/null || echo unknown)" >> build-metadata/origins.txt
           cat custom/BUILD_NUMBER >> build-metadata/origins.txt
 

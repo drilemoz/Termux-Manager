@@ -1,3 +1,4 @@
 <resources>
     <color name="termux_manager_icon_background">#012456</color>
+    <color name="termux_manager_toolbar_background">#012456</color>
 </resources>

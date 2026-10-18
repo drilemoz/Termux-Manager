@@ -1,15 +1,12 @@
-# Termux Manager 0.1.0-alpha.3
+# Termux Manager 0.1.0-alpha.4
 
-**Código-fonte de integração, sem APK pré-compilado.**
+**Fonte de integração Android, sem APK pré-compilado.**
 
-- Tema azul inspirado no Windows PowerShell clássico, aplicado apenas quando não há cores existentes em `~/.termux/colors.properties`.
-- Identidade visual com ícone terminal + engrenagem e nome Termux Manager.
-- Snapshot offline do TermuxManager 1.0.126 incluído no projeto, validado por SHA-256.
-- Instalação para prefixo já existente e reparo conservador de arquivos ausentes.
-- SHA-256 por arquivo, rejeição de entradas ZIP estranhas e integração com rollback.
-- Assinatura privada via GitHub Secrets sem fallback para assinatura pública de testes.
-- Comando `manager-autostart` para controlar ou remover autoinicialização sem apagar configurações do usuário.
+- TermuxManager 1.0.128 incorporado, manifesto de 142 arquivos e hashes verificados.
+- Barra de teclas extras azul PowerShell `#012456` igual ao terminal; não afeta o teclado virtual Android.
+- Instalação existente do Manager criada pelo APK anterior migra arquivos originais para 1.0.128 sem substituir mudanças do usuário. Instalações externas não são modificadas.
+- Assistente inicial oferece Fish como padrão, com confirmação explícita; adiciona sugestões e autostart ao aceitar. Instalações que já concluíram o assistente ficam intactas.
+- Processo `pkg/apt` mostra painel de progresso terminal, sem porcentagem fictícia e com logs recentes; prompts interativos continuam no TTY real. Não há janela Android nativa.
+- Manteve ícone original, package `com.termux`, versionCode 118004, assinatura privada por quatro Secrets e proteção contra ZIP malicioso.
 
-**Testes locais:** 13 testes Python, compilação Java simulada com cenários de proteção e reparo, 59 scripts Bash do snapshot verificados, e integração real do snapshot 1.0.126 em estrutura sintética do Termux. **Ainda não realizado:** build Gradle/Android e teste em celular.
-
-A configuração da keystore com `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` e `KEY_PASSWORD` é obrigatória antes de rodar GitHub Actions.
+Teste de APK Gradle e execução no Android ainda pendentes. Faça backup antes de atualizar/desinstalar o Termux, especialmente se trocar assinatura.

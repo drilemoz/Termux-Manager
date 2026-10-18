@@ -45,6 +45,9 @@ class TermuxInstaller {
         string_file = app / "app/src/main/res/values/strings.xml"
         string_file.parent.mkdir(parents=True, exist_ok=True)
         string_file.write_text('<resources><string name="application_name">Termux</string></resources>')
+        layout = app / "app/src/main/res/layout/activity_termux.xml"
+        layout.parent.mkdir(parents=True, exist_ok=True)
+        layout.write_text('<LinearLayout android:background="@color/black"/>')
         m = directory / "manager"
         (m / "modules").mkdir(parents=True)
         (m / "manager.sh").write_text('MANAGER_VERSION="1.0.106"\nMANAGER_REPOSITORY="https://github.com/adriedsonlemoz/TermuxManager"\n')
@@ -59,16 +62,18 @@ class TermuxInstaller {
     def test_integration_and_origin_patch(self):
         with tempfile.TemporaryDirectory() as temp:
             app, manager = self.make_fixture(Path(temp))
-            integrate.integrate(app, manager, 3)
+            integrate.integrate(app, manager, 4)
             installer = (app / integrate.INSTALLER).read_text()
             self.assertIn('TermuxManagerBundle.install(activity);', installer)
             self.assertEqual(installer.count('TermuxManagerBundle.install(activity);'), 2)
             self.assertIn('tm-manager-existing-prefix', installer)
             gradle = (app / 'app/build.gradle').read_text()
-            self.assertIn('versionCode 118003', gradle)
-            self.assertIn('versionName "0.118.0+tm.3"', gradle)
+            self.assertIn('versionCode 118004', gradle)
+            self.assertIn('versionName "0.118.0+tm.4"', gradle)
             self.assertIn('Termux Manager', (app/'app/src/main/res/values/strings.xml').read_text())
             self.assertIn('TM_KEYSTORE_FILE', gradle)
+            self.assertIn('termux_manager_toolbar_background', (app/'app/src/main/res/layout/activity_termux.xml').read_text())
+            self.assertTrue((app / integrate.LEGACY_INDEX_ASSET).is_file())
             index = (app / integrate.INDEX_ASSET).read_text().splitlines()
             expected = dict(line.split('\t') for line in index)
             with zipfile.ZipFile(app / integrate.ASSET) as z:
@@ -82,7 +87,7 @@ class TermuxInstaller {
                 for n, digest in m['files'].items():
                     self.assertEqual(hashlib.sha256(z.read(n)).hexdigest(),digest)
             with self.assertRaises(RuntimeError):
-                integrate.integrate(app, manager, 3)  # refuse double patch
+                integrate.integrate(app, manager, 4)  # refuse double patch
 
     def test_mismatch_aborts_and_preserves_upstream(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -98,7 +103,7 @@ class TermuxInstaller {
         with tempfile.TemporaryDirectory() as temp:
             app, manager = self.make_fixture(Path(temp))
             (manager / 'nao_listado.sh').write_text('echo warning')
-            integrate.integrate(app, manager, 3)
+            integrate.integrate(app, manager, 4)
             with zipfile.ZipFile(app / integrate.ASSET) as z:
                 self.assertNotIn('nao_listado.sh', z.namelist())
 
@@ -109,7 +114,7 @@ class TermuxInstaller {
             gradle.write_text(gradle.read_text().replace('"0.118.0"', '"bad-version"'))
             original = (app / integrate.INSTALLER).read_bytes()
             with self.assertRaisesRegex(RuntimeError, 'versionName'):
-                integrate.integrate(app, manager, 3)
+                integrate.integrate(app, manager, 4)
             self.assertEqual((app / integrate.INSTALLER).read_bytes(), original)
             self.assertFalse((app / integrate.ASSET).exists())
             self.assertFalse((app / integrate.INDEX_ASSET).exists())

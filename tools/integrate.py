@@ -15,6 +15,7 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
+from manager_overlays import apply_manager_overlays
 
 ROOT = Path(__file__).resolve().parent.parent
 OLD_REPO = "adriedsonlemoz/TermuxManager"
@@ -23,6 +24,7 @@ APP_JAVA = Path("app/src/main/java/com/termux/app")
 INSTALLER = APP_JAVA / "TermuxInstaller.java"
 ASSET = Path("app/src/main/assets/termux-manager.bundle.zip")
 INDEX_ASSET = Path("app/src/main/assets/termux-manager.bundle-index.tsv")
+LEGACY_INDEX_ASSET = Path("app/src/main/assets/termux-manager.legacy-index-1.0.126.tsv")
 
 
 def sha256(p: Path) -> str:
@@ -81,6 +83,10 @@ def prepare_manager(manager: Path, work: Path) -> tuple[Path, str]:
         raise RuntimeError("Manager origin update failed")
     print(f"Manager {manifest['version']}: {len(manifest['files'])} verified manifest entries; "
           f"updated origin in {len(replaced)} files")
+    if (staged/'modules/termux_setup.sh').is_file():
+        apply_manager_overlays(staged)
+    elif manifest['version'] != '1.0.106':
+        raise RuntimeError('Required Manager overlays cannot be applied to this snapshot')
     # Stage only signed-manifest files and MANIFEST.json; all other material is excluded.
     packaged = work / "packaged"
     for rel in [*manifest["files"], "MANIFEST.json"]:
@@ -141,7 +147,8 @@ def integrate(upstream: Path, manager: Path, build_number: int) -> None:
     installer_path = upstream / INSTALLER
     gradle_path = upstream / "app/build.gradle"
     strings_path = upstream / "app/src/main/res/values/strings.xml"
-    for file in [installer_path, gradle_path, strings_path]:
+    layout_path = upstream / "app/src/main/res/layout/activity_termux.xml"
+    for file in [installer_path, gradle_path, strings_path, layout_path]:
         if not file.is_file():
             raise RuntimeError("Not a compatible termux-app checkout: " + str(file))
     destination = upstream / APP_JAVA / "TermuxManagerBundle.java"
@@ -204,6 +211,15 @@ def integrate(upstream: Path, manager: Path, build_number: int) -> None:
     if len(images) < 10:
         raise RuntimeError("Missing launcher icon assets")
 
+    # Android native extra-keys background: stock termux layout explicitly uses
+    # @color/black. Match our terminal palette without changing Gboard/SwiftKey.
+    layout = layout_path.read_text(encoding="utf-8")
+    layout = replace_exact(layout, 'android:background="@color/black"',
+                           'android:background="@color/termux_manager_toolbar_background"',
+                           'Termux extra keys background')
+    legacy_index = ROOT / "integration/legacy-index-1.0.126.tsv"
+    if not legacy_index.is_file() or 'manager.sh\t' not in legacy_index.read_text():
+        raise RuntimeError("Missing verified baseline index for Manager 1.0.126 migration")
     # Bundle generated into temp; do not patch upstream until validation completes.
     with tempfile.TemporaryDirectory(prefix="tm-integration-") as td:
         tmp = Path(td)
@@ -217,11 +233,13 @@ def integrate(upstream: Path, manager: Path, build_number: int) -> None:
             installer_path: content,
             gradle_path: gradle,
             strings_path: new_strings,
+            layout_path: layout,
             upstream / INDEX_ASSET: index,
             **localized_strings,
         }
         copies = {destination: ROOT / 'integration/TermuxManagerBundle.java',
-                  upstream / ASSET: bundle}
+                  upstream / ASSET: bundle,
+                  upstream / LEGACY_INDEX_ASSET: legacy_index}
         for icon_file in images:
             copies[upstream / 'app/src/main/res' / icon_file.relative_to(brand)] = icon_file
         for xml_file in brand.rglob('*.xml'):

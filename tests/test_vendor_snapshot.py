@@ -1,4 +1,4 @@
-"""Validate integrity of bundled TermuxManager v1.0.126 snapshot."""
+"""Validate integrity of bundled TermuxManager v1.0.128 snapshot."""
 import hashlib
 import json
 import unittest
@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 class VendorSnapshotTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.archive = ROOT / 'vendor/TermuxManager-v1.0.126.zip'
+        cls.archive = ROOT / 'vendor/TermuxManager-v1.0.128.zip'
         cls.digest = (ROOT / 'vendor/SHA256SUMS').read_text().split()[0]
 
     def test_archive_sha256(self):
@@ -22,8 +22,8 @@ class VendorSnapshotTests(unittest.TestCase):
             self.assertIsNone(z.testzip())
             self.assertIn('MANIFEST.json', z.namelist())
             manifest = json.loads(z.read('MANIFEST.json'))
-            self.assertEqual(manifest['version'], '1.0.126')
-            self.assertGreaterEqual(len(manifest['files']), 138)
+            self.assertEqual(manifest['version'], '1.0.128')
+            self.assertGreaterEqual(len(manifest['files']), 142)
             all_files = {name for name in z.namelist() if not name.endswith('/')}
             self.assertEqual(all_files, set(manifest['files']) | {'MANIFEST.json'})
             for name, digest in manifest['files'].items():

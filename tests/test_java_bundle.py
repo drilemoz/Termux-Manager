@@ -11,10 +11,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def make_assets(folder: Path, extras=None, *, bad_hash=False):
+def make_assets(folder: Path, extras=None, *, bad_hash=False, version=1):
     files = {
-        'manager.sh': b'#!/bin/sh\necho ok\n',
-        'modules/core.sh': b'echo core\n',
+        'manager.sh': b'#!/bin/sh\necho ok\n' if version == 1 else b'#!/bin/sh\necho upgraded\n',
+        'modules/core.sh': b'echo core\n' if version == 1 else b'echo core v2\n',
         'install.sh': b'#!/bin/sh\n',
         'MANIFEST.json': b'{}',
     }
@@ -86,6 +86,22 @@ public class TestBundle {
   if(!missing.isFile())throw new RuntimeException("missing module not repaired");
   if(!new String(Files.readAllBytes(manager.toPath()),"UTF-8").equals("user edits\\n"))throw new RuntimeException("user edit overwritten");
   if(!new String(Files.readAllBytes(palette.toPath()),"UTF-8").contains("#FFAA00"))throw new RuntimeException("user palette overwritten");
+  if(args.length>2){
+     // Simulate upgrade from alpha.3, which had only the legacy bundled marker.
+     new File(files,"home/scripts/manager/.termux-manager-file-index.tsv").delete();
+     File next=new File(args[2]);
+     Files.copy(new File(next,"termux-manager.bundle.zip").toPath(),
+                new File(args[1],"termux-manager.bundle.zip").toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+     Files.copy(new File(next,"termux-manager.bundle-index.tsv").toPath(),
+                new File(args[1],"termux-manager.bundle-index.tsv").toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+     TermuxManagerBundle.install(ctx);
+     String newCore=new String(Files.readAllBytes(missing.toPath()),"UTF-8");
+     if(!newCore.equals("echo core v2\\n"))throw new RuntimeException("managed core not upgraded: "+newCore);
+     if(!new String(Files.readAllBytes(manager.toPath()),"UTF-8").equals("user edits\\n"))throw new RuntimeException("user edit lost during upgrade");
+     if(!new File(files,"home/scripts/manager/.termux-manager-file-index.tsv").isFile())throw new RuntimeException("new installed index missing");
+  }
   if(new String(Files.readAllBytes(profile.toPath()),"UTF-8").split("TERMUX_MANAGER_BUNDLE_AUTOSTART_V1",-1).length!=2)
       throw new RuntimeException("profile patched twice");
   System.out.println("JAVA_BUNDLE_OK");
@@ -97,8 +113,13 @@ public class TestBundle {
         assets = td / 'assets'
         assets.mkdir()
         make_assets(assets)
-        command = ['java', '-cp', str(td / 'classes'), 'com.termux.app.TestBundle']
-        result = subprocess.run([*command, str(td / 'files'), str(assets)],
+        (assets / 'termux-manager.legacy-index-1.0.126.tsv').write_text(
+            (assets / 'termux-manager.bundle-index.tsv').read_text())
+        next_assets = td / 'next_assets'
+        next_assets.mkdir()
+        make_assets(next_assets, version=2)
+        command = ['java' , '-cp', str(td / 'classes'), 'com.termux.app.TestBundle']
+        result = subprocess.run([*command, str(td / 'files'), str(assets), str(next_assets)],
                                 text=True, capture_output=True, check=True)
         assert 'JAVA_BUNDLE_OK' in result.stdout
         print('JAVA_BUNDLE_OK: theme, repair, user edits and profile preserved')
