@@ -1,17 +1,17 @@
-# Termux Manager | 0.1.0-alpha.4
+# Termux Manager | 0.1.0-alpha.5
 
-Projeto Android para gerar, pelo GitHub Actions, um APK privado do **Termux** com **TermuxManager 1.0.128** incorporado, nome de aplicativo **Termux Manager**, ícone azul de terminal + engrenagem e aparência padrão **PowerShell clássico**.
+Projeto Android para gerar, pelo GitHub Actions, um APK privado do **Termux** com **TermuxManager 1.0.133** incorporado, nome de aplicativo **Termux Manager**, ícone azul de terminal + engrenagem e aparência padrão **PowerShell clássico**.
 
 ## Identidade e versão
 
 - **Nome visível no Android:** Termux Manager, inclusive traduções locais que declararem `application_name`.
 - **Package ID:** `com.termux` (mantido obrigatoriamente para compatibilidade com o bootstrap e caminhos Linux).
-- **Versão da integração:** `0.1.0-alpha.4` / `BUILD_NUMBER=4`.
-- **TermuxManager incorporado:** snapshot `vendor/TermuxManager-v1.0.128.zip` verificado por SHA-256 `d86d8e3b3c162a37d982c4338fbd8f01dbbec5d3e61a1b11789f51f55c7729e5`, obtido da pasta do projeto no Google Drive; MANIFEST declara 1.0.128 e teve os 142 hashes confirmados em 18/10/2026.
+- **Versão da integração:** `0.1.0-alpha.5` / `BUILD_NUMBER=5`.
+- **TermuxManager incorporado:** snapshot `vendor/TermuxManager-v1.0.133.zip` verificado por SHA-256 `d411f6f1d3cd8b641c7f1366805df8b1f7ab650ae0c3a2d6343a418a002cf510`, fornecido pelo usuário e confrontado com o manifesto atual do repositório GitHub; MANIFEST declara 1.0.133 e teve os 147 hashes confirmados em 19/10/2026.
 - **Termux base:** `termux/termux-app` no commit `8629e632fcb95da272221be327db653fb24befe9`, com `versionName` upstream `0.118.0` e `versionCode` upstream `118`, verificados no código.
-- **APK versionName:** `0.118.0+tm.4`; **versionCode:** `118004` (calculado na integração). Atualização in-place exige também mesma assinatura e package ID.
+- **APK versionName:** `0.118.0+tm.5`; **versionCode:** `118005` (calculado na integração). Atualização in-place exige também mesma assinatura e package ID.
 
-O código-fonte completo do **Termux Android** não está neste ZIP: o GitHub Actions baixa esse repositório no commit fixo. O TermuxManager 1.0.128 **já está dentro do ZIP**, no diretório `vendor/`, e é validado por SHA-256 no workflow e pelos hashes individuais do `MANIFEST.json`. Novas releases do Manager não entram automaticamente; é necessário revisar e substituir o snapshot verificado.
+O código-fonte completo do **Termux Android** não está neste ZIP: o GitHub Actions baixa esse repositório no commit fixo. O TermuxManager 1.0.133 **já está dentro do ZIP**, no diretório `vendor/`, e é validado por SHA-256 no workflow e pelos hashes individuais do `MANIFEST.json`. Novas releases do Manager não entram automaticamente; é necessário revisar e substituir o snapshot verificado.
 
 ## Visual padrão
 
@@ -24,9 +24,18 @@ O código-fonte completo do **Termux Android** não está neste ZIP: o GitHub Ac
 ## Barra de teclas, Fish e progresso do apt
 
 - A barra de teclas extras do Android acompanha a cor azul `#012456`, por substituição controlada de um único recurso `activity_termux.xml` de um commit fixo. O teclado virtual do Android (SwiftKey/Gboard) não é modificado.
-- O Manager 1.0.128 oferece Fish, sugestões e `chsh`. Em uma **nova configuração inicial**, pergunta uma única vez, com resposta padrão Sim, se o Fish deve se tornar padrão; em atualizações de instalações já concluídas, não muda o shell automaticamente.
+- O Manager 1.0.133 oferece Fish, sugestões e `chsh`. Em uma **nova configuração inicial**, pergunta uma única vez, com resposta padrão Sim, se o Fish deve se tornar padrão; em atualizações de instalações já concluídas, não muda o shell automaticamente.
 - Instalações `pkg`/`apt` exibem **painel TUI do terminal** com atividade/log em tempo real e indicador indeterminado, sem estimativa fictícia. Se houver escolha de mirror ou prompt de dpkg, o terminal interativo recebe controle. **Não é uma janela nativa Android**; isso exige integração separada entre Java e processos Bash e testes no aparelho.
-- A versão 1.0.128 do Manager vem de snapshot verificado; patches de comportamento estão em `tools/manager_overlays.py`, aplicados após checar o manifesto e revalidados para os arquivos incorporados.
+- A versão 1.0.133 do Manager vem de snapshot verificado; patches de comportamento estão em `tools/manager_overlays.py`, aplicados após checar o manifesto e revalidados para os arquivos incorporados.
+
+
+## Recursos do Manager 1.0.133
+
+- **Central de execução**: serviços MariaDB e phpMyAdmin locais e execução de projetos PHP/Node, com diagnóstico de portas e processos.
+- **[T] Iniciar tudo**: inicia apenas serviços previamente instalados e o projeto escolhido; em ambientes com vários projetos, pede a seleção e guarda preferência. Não instala dependências nem inicializa todos os projetos automaticamente.
+- **Importação de projetos**: navegador de arquivos e tratamento de conflitos; evita importar Downloads/Home inteiros por acidente, aplica exclusões previstas.
+- **phpMyAdmin**: instalação controlada mediante confirmação, vinculado ao endereço local, não altera bancos existentes sem autorização.
+- Os recursos são próprios da versão 1.0.133 do script e ainda exigem validação de runtime no Android.
 
 ## Instalação do Manager embutido
 
@@ -34,7 +43,7 @@ O código-fonte completo do **Termux Android** não está neste ZIP: o GitHub Ac
 - Prefixo já existente: executa a verificação em uma thread antes de liberar a sessão do terminal, resolvendo o caso em que o bootstrap não era repetido.
 - Reparo: apenas em pastas **gerenciadas por essa integração**, identificadas por `.termux-manager-bundle-installed`, os arquivos faltantes são restaurados, sem substituir os existentes. Instalações preexistentes ou modificadas sem marcador são preservadas.
 - Proteções: caminhos canônicos, rejeição de entradas ZIP desconhecidas/duplicadas, limite de tamanho e entradas, hash SHA-256 de **cada arquivo** confrontado com índice separado integrado ao APK, origem validada pelo MANIFEST.json e pacote contendo somente arquivos declarados.
-- Atualizações do APK **atualizam arquivos gerenciados não modificados do Manager**; a atualização de 1.0.126 para 1.0.128 é feita somente para arquivos gerenciados com hash conhecido, preservando customizações e instalações externas. Instalações não gerenciadas devem utilizar a atualização própria do Manager após backup.
+- Atualizações do APK **atualizam arquivos gerenciados não modificados do Manager**; a atualização de versões gerenciadas anteriores para 1.0.133 é feita somente para arquivos gerenciados com hash conhecido, preservando customizações e instalações externas. Instalações não gerenciadas devem utilizar a atualização própria do Manager após backup.
 - Um erro no componente opcional do Manager não apaga o `$PREFIX` do Termux.
 
 Desativar autoinicialização do menu (`manager` e `mm` continuam disponíveis):

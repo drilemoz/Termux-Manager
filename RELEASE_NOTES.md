@@ -1,12 +1,11 @@
-# Termux Manager 0.1.0-alpha.4
+# Termux Manager 0.1.0-alpha.5
 
 **Fonte de integração Android, sem APK pré-compilado.**
 
-- TermuxManager 1.0.128 incorporado, manifesto de 142 arquivos e hashes verificados.
-- Barra de teclas extras azul PowerShell `#012456` igual ao terminal; não afeta o teclado virtual Android.
-- Instalação existente do Manager criada pelo APK anterior migra arquivos originais para 1.0.128 sem substituir mudanças do usuário. Instalações externas não são modificadas.
-- Assistente inicial oferece Fish como padrão, com confirmação explícita; adiciona sugestões e autostart ao aceitar. Instalações que já concluíram o assistente ficam intactas.
-- Processo `pkg/apt` mostra painel de progresso terminal, sem porcentagem fictícia e com logs recentes; prompts interativos continuam no TTY real. Não há janela Android nativa.
-- Manteve ícone original, package `com.termux`, versionCode 118004, assinatura privada por quatro Secrets e proteção contra ZIP malicioso.
-
-Teste de APK Gradle e execução no Android ainda pendentes. Faça backup antes de atualizar/desinstalar o Termux, especialmente se trocar assinatura.
+- TermuxManager 1.0.133 incorporado: 147 arquivos SHA-256 conferidos.
+- Central de execução com opção [T] Iniciar tudo, seleção e persistência do projeto preferido, diagnóstico de MariaDB/phpMyAdmin e portas; nenhum serviço é iniciado automaticamente apenas ao abrir o APK.
+- Melhorias de importação (navegador de arquivos e resolução simplificada de conflitos), phpMyAdmin local e testes adicionais da upstream.
+- Preserva tema azul PowerShell `#012456` inclusive na barra de teclas Android, ícone próprio, Fish opcional no assistente, painel de `pkg/apt` com atividade real.
+- Upgrade de instalações gerenciadas preserva arquivos editados pelo usuário; instalações externas não são sobrescritas.
+- Termux base `0.118.0`, APK esperado `0.118.0+tm.5`, versionCode `118005`, package ID `com.termux`, assinatura privada obrigatória via quatro Secrets existentes.
+- Build Gradle Android e teste no celular ainda pendentes. Antes de instalar, faça backup dos dados e confira assinatura compatível.

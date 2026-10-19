@@ -62,14 +62,14 @@ class TermuxInstaller {
     def test_integration_and_origin_patch(self):
         with tempfile.TemporaryDirectory() as temp:
             app, manager = self.make_fixture(Path(temp))
-            integrate.integrate(app, manager, 4)
+            integrate.integrate(app, manager, 5)
             installer = (app / integrate.INSTALLER).read_text()
             self.assertIn('TermuxManagerBundle.install(activity);', installer)
             self.assertEqual(installer.count('TermuxManagerBundle.install(activity);'), 2)
             self.assertIn('tm-manager-existing-prefix', installer)
             gradle = (app / 'app/build.gradle').read_text()
-            self.assertIn('versionCode 118004', gradle)
-            self.assertIn('versionName "0.118.0+tm.4"', gradle)
+            self.assertIn('versionCode 118005', gradle)
+            self.assertIn('versionName "0.118.0+tm.5"', gradle)
             self.assertIn('Termux Manager', (app/'app/src/main/res/values/strings.xml').read_text())
             self.assertIn('TM_KEYSTORE_FILE', gradle)
             self.assertIn('termux_manager_toolbar_background', (app/'app/src/main/res/layout/activity_termux.xml').read_text())
@@ -87,7 +87,35 @@ class TermuxInstaller {
                 for n, digest in m['files'].items():
                     self.assertEqual(hashlib.sha256(z.read(n)).hexdigest(),digest)
             with self.assertRaises(RuntimeError):
-                integrate.integrate(app, manager, 4)  # refuse double patch
+                integrate.integrate(app, manager, 5)  # refuse double patch
+
+    def test_real_133_bundle_integration_preserves_visual_and_features(self):
+        # Exercises the actual verified release, not only the synthetic 1.0.106 fixture.
+        with tempfile.TemporaryDirectory() as temp:
+            work = Path(temp)
+            app, _ = self.make_fixture(work)
+            manager = work / "real_manager"
+            with zipfile.ZipFile(ROOT / "vendor/TermuxManager-v1.0.133.zip") as archive:
+                self.assertIsNone(archive.testzip())
+                self.assertTrue(all(not Path(name).is_absolute() and ".." not in Path(name).parts
+                                    for name in archive.namelist()))
+                archive.extractall(manager)
+            integrate.integrate(app, manager, 5)
+            self.assertIn('termux_manager_toolbar_background',
+                          (app / 'app/src/main/res/layout/activity_termux.xml').read_text())
+            index = dict(line.split('\t') for line in (app / integrate.INDEX_ASSET).read_text().splitlines())
+            with zipfile.ZipFile(app / integrate.ASSET) as bundled:
+                self.assertEqual(set(index), set(bundled.namelist()))
+                release = json.loads(bundled.read('MANIFEST.json'))
+                self.assertEqual(release['version'], '1.0.133')
+                self.assertEqual(len(release['files']), 147)
+                self.assertIn('modules/runtime_processes.sh', bundled.namelist())
+                self.assertIn('modules/import_wizard.sh', bundled.namelist())
+                self.assertIn('tools/test-iniciar-tudo-133.sh', bundled.namelist())
+                self.assertIn(b'Ativar Fish automaticamente nas novas sess',
+                              bundled.read('modules/termux_setup.sh'))
+                for name, digest in index.items():
+                    self.assertEqual(hashlib.sha256(bundled.read(name)).hexdigest(), digest)
 
     def test_mismatch_aborts_and_preserves_upstream(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -103,7 +131,7 @@ class TermuxInstaller {
         with tempfile.TemporaryDirectory() as temp:
             app, manager = self.make_fixture(Path(temp))
             (manager / 'nao_listado.sh').write_text('echo warning')
-            integrate.integrate(app, manager, 4)
+            integrate.integrate(app, manager, 5)
             with zipfile.ZipFile(app / integrate.ASSET) as z:
                 self.assertNotIn('nao_listado.sh', z.namelist())
 
@@ -114,7 +142,7 @@ class TermuxInstaller {
             gradle.write_text(gradle.read_text().replace('"0.118.0"', '"bad-version"'))
             original = (app / integrate.INSTALLER).read_bytes()
             with self.assertRaisesRegex(RuntimeError, 'versionName'):
-                integrate.integrate(app, manager, 4)
+                integrate.integrate(app, manager, 5)
             self.assertEqual((app / integrate.INSTALLER).read_bytes(), original)
             self.assertFalse((app / integrate.ASSET).exists())
             self.assertFalse((app / integrate.INDEX_ASSET).exists())

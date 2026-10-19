@@ -29,15 +29,25 @@ class WorkflowRegressionTests(unittest.TestCase):
         self.assertIn("sdkmanager --install 'ndk;29.0.14206865' 'platforms;android-36' 'build-tools;36.0.0'", self.workflow)
 
     def test_version_sync(self):
-        self.assertEqual((ROOT/'BUILD_NUMBER').read_text().strip(),'4')
-        self.assertIn('0.1.0-alpha.4', (ROOT/'README.md').read_text())
-        self.assertIn('0.1.0-alpha.4', (ROOT/'CHANGELOG.md').read_text())
+        self.assertEqual((ROOT/'BUILD_NUMBER').read_text().strip(),'5')
+        self.assertIn('0.1.0-alpha.5', (ROOT/'README.md').read_text())
+        self.assertIn('0.1.0-alpha.5', (ROOT/'CHANGELOG.md').read_text())
+
+    def test_status_and_workflow_metadata_sync(self):
+        import json
+        status = json.loads((ROOT / 'STATUS.json').read_text())
+        self.assertEqual(status['integration_build_number'], 5)
+        self.assertEqual(status['version'], '0.1.0-alpha.5')
+        self.assertEqual(status['confirmed_manager_manifest_version'], '1.0.133')
+        self.assertEqual(status['build_apk_version_code_expected'], 118005)
+        self.assertEqual(status['build_apk_version_name_expected'], '0.118.0+tm.5')
+        self.assertIn('1.0.133', self.workflow)
 
     def test_signing_is_private_and_sources_are_pinned(self):
         self.assertIn('Exigir assinatura privada', self.workflow)
         self.assertIn('KEYSTORE_BASE64', self.workflow)
         self.assertIn('apksigner" verify --verbose', self.workflow)
-        self.assertIn('TermuxManager-v1.0.128.zip', self.workflow)
+        self.assertIn('TermuxManager-v1.0.133.zip', self.workflow)
         self.assertIn('sha256sum --check', self.workflow)
         self.assertIn('8629e632fcb95da272221be327db653fb24befe9', self.workflow)
 

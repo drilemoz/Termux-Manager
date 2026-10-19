@@ -16,10 +16,10 @@ class ManagerOverlayTests(unittest.TestCase):
     def test_fish_first_run_and_progress_in_real_bundle(self):
         with tempfile.TemporaryDirectory() as tmp:
             t=Path(tmp)
-            with zipfile.ZipFile(ROOT/'vendor/TermuxManager-v1.0.128.zip') as z:
+            with zipfile.ZipFile(ROOT/'vendor/TermuxManager-v1.0.133.zip') as z:
                 z.extractall(t/'manager')
             packaged, v=integrate.prepare_manager(t/'manager',t/'work')
-            self.assertEqual(v,'1.0.128')
+            self.assertEqual(v,'1.0.133')
             content=(packaged/'modules/termux_setup.sh').read_text()
             self.assertIn('Ativar Fish automaticamente nas novas sessões?',content)
             self.assertIn('fish=skipped',content)
