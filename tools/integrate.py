@@ -22,6 +22,7 @@ OLD_REPO = "adriedsonlemoz/TermuxManager"
 NEW_REPO = "drilemoz/TermuxManager"
 APP_JAVA = Path("app/src/main/java/com/termux/app")
 INSTALLER = APP_JAVA / "TermuxInstaller.java"
+EXTRA_KEYS = APP_JAVA / "terminal/io/TermuxTerminalExtraKeys.java"
 ASSET = Path("app/src/main/assets/termux-manager.bundle.zip")
 INDEX_ASSET = Path("app/src/main/assets/termux-manager.bundle-index.tsv")
 LEGACY_INDEX_ASSET = Path("app/src/main/assets/termux-manager.legacy-index-1.0.126.tsv")
@@ -141,6 +142,55 @@ def replace_exact(contents: str, old: str, new: str, label: str) -> str:
     return contents.replace(old, new)
 
 
+def add_sessions_button_to_extra_keys_java(source: str) -> str:
+    """Use stock DRAWER action, adding a persistent SESS key without touching user config."""
+    if "private static String withSessionsButton" in source or "extrakeys = withSessionsButton(extrakeys);" in source:
+        raise RuntimeError("Sessions shortcut already patched: refusing duplicate")
+    source = replace_exact(source, "import org.json.JSONException;",
+                           "import org.json.JSONArray;\nimport org.json.JSONException;\nimport org.json.JSONObject;",
+                           "Termux extra-keys JSON imports")
+    anchor = "            String extraKeysStyle = (String) mActivity.getProperties().getInternalPropertyValue(TermuxPropertyConstants.KEY_EXTRA_KEYS_STYLE, true);"
+    source = replace_exact(source, anchor,
+                           "            extrakeys = withSessionsButton(extrakeys);\n" + anchor,
+                           "extra-keys property insertion")
+    fallback_anchor = 'mExtraKeysInfo = new ExtraKeysInfo(TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS, TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_STYLE, ExtraKeysConstants.CONTROL_CHARS_ALIASES);'
+    source = replace_exact(source, fallback_anchor,
+                           'mExtraKeysInfo = new ExtraKeysInfo(withSessionsButton(TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS), TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_STYLE, ExtraKeysConstants.CONTROL_CHARS_ALIASES);',
+                           "extra-keys fallback sessions button")
+    method_anchor = "    public ExtraKeysInfo getExtraKeysInfo() {"
+    helper = """    /**
+     * Add an always-available sessions shortcut to the visible extra-keys toolbar.
+     * The built-in DRAWER action already opens/closes Termux's actual sessions list.
+     * Keep the user's original keys and layout; never persist an override to disk.
+     */
+    private static String withSessionsButton(String configuredKeys) throws JSONException {
+        JSONArray rows = new JSONArray(configuredKeys);
+        for (int rowIndex = 0; rowIndex < rows.length(); rowIndex++) {
+            JSONArray row = rows.getJSONArray(rowIndex);
+            for (int colIndex = 0; colIndex < row.length(); colIndex++) {
+                Object button = row.get(colIndex);
+                if ("DRAWER".equals(button) ||
+                    (button instanceof JSONObject && "DRAWER".equals(((JSONObject) button).optString("key")))) {
+                    return configuredKeys; // User already configured a drawer shortcut.
+                }
+            }
+        }
+        JSONObject sessionsButton = new JSONObject();
+        sessionsButton.put("key", "DRAWER");
+        sessionsButton.put("display", "SESS");
+        if (rows.length() == 0) {
+            rows.put(new JSONArray().put(sessionsButton));
+        } else {
+            rows.getJSONArray(0).put(sessionsButton);
+        }
+        return rows.toString();
+    }
+
+"""
+    return replace_exact(source, method_anchor, helper + method_anchor,
+                         "Termux sessions button helper")
+
+
 def integrate(upstream: Path, manager: Path, build_number: int) -> None:
     if build_number < 1 or build_number > 999:
         raise RuntimeError("build_number must be in the range 1..999")
@@ -148,7 +198,8 @@ def integrate(upstream: Path, manager: Path, build_number: int) -> None:
     gradle_path = upstream / "app/build.gradle"
     strings_path = upstream / "app/src/main/res/values/strings.xml"
     layout_path = upstream / "app/src/main/res/layout/activity_termux.xml"
-    for file in [installer_path, gradle_path, strings_path, layout_path]:
+    extra_keys_path = upstream / EXTRA_KEYS
+    for file in [installer_path, gradle_path, strings_path, layout_path, extra_keys_path]:
         if not file.is_file():
             raise RuntimeError("Not a compatible termux-app checkout: " + str(file))
     destination = upstream / APP_JAVA / "TermuxManagerBundle.java"
@@ -156,6 +207,7 @@ def integrate(upstream: Path, manager: Path, build_number: int) -> None:
         raise RuntimeError("TermuxManager already integrated: refusing duplicate patch")
 
     # Calculate all patches and validate source anchors before touching upstream.
+    extra_keys = add_sessions_button_to_extra_keys_java(extra_keys_path.read_text(encoding="utf-8"))
     content = installer_path.read_text(encoding="utf-8")
     callback = 'activity.runOnUiThread(whenDone);'
     content = replace_exact(content, callback, 'TermuxManagerBundle.install(activity);\n                ' + callback, "fresh bootstrap callback")
@@ -234,6 +286,7 @@ def integrate(upstream: Path, manager: Path, build_number: int) -> None:
             gradle_path: gradle,
             strings_path: new_strings,
             layout_path: layout,
+            extra_keys_path: extra_keys,
             upstream / INDEX_ASSET: index,
             **localized_strings,
         }

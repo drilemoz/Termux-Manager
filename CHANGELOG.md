@@ -1,5 +1,11 @@
 # Histórico
 
+## 0.1.0-alpha.6 (2026-11-09)
+- Adicionado botão **SESS** ao fim da primeira fileira de teclas extras do Termux. Abre/fecha a gaveta nativa com as sessões abertas sem gesto lateral, reutilizando a ação `DRAWER` existente.
+- Aplicação em memória inclusive com teclas personalizadas, sem editar `termux.properties`; evita duplicação caso `DRAWER` já esteja configurado. Mantém teclas e sessões existentes.
+- Integração protegida por âncoras exatas no `TermuxTerminalExtraKeys.java`, com testes de aplicação, não duplicação e rollback em mudanças incompatíveis.
+- Versão `0.1.0-alpha.6`, build `6`, APK esperado `0.118.0+tm.6` (`versionCode=118006`); compilação Gradle e validação de interface no Android pendentes.
+
 ## 0.1.0-alpha.5 (2026-10-19)
 - Integrado TermuxManager **1.0.133** em substituição ao 1.0.128; 147 arquivos do manifesto original verificados por SHA-256; snapshot ZIP fixado (d411f6f1d3cd8b641c7f1366805df8b1f7ab650ae0c3a2d6343a418a002cf510).
 - Incorporadas mudanças 1.0.129–1.0.133: phpMyAdmin/MariaDB, Central de execução, navegador/importação simplificada e [T] Iniciar tudo com verificações de serviços e projeto escolhido.

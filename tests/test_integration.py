@@ -48,6 +48,19 @@ class TermuxInstaller {
         layout = app / "app/src/main/res/layout/activity_termux.xml"
         layout.parent.mkdir(parents=True, exist_ok=True)
         layout.write_text('<LinearLayout android:background="@color/black"/>')
+        extra = app / integrate.EXTRA_KEYS
+        extra.parent.mkdir(parents=True, exist_ok=True)
+        extra.write_text('''package com.termux.app.terminal.io;
+import org.json.JSONException;
+class TermuxTerminalExtraKeys {
+    void setExtraKeys() {
+        String extrakeys = "default";
+            String extraKeysStyle = (String) mActivity.getProperties().getInternalPropertyValue(TermuxPropertyConstants.KEY_EXTRA_KEYS_STYLE, true);
+    }
+    mExtraKeysInfo = new ExtraKeysInfo(TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS, TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_STYLE, ExtraKeysConstants.CONTROL_CHARS_ALIASES);
+    public ExtraKeysInfo getExtraKeysInfo() { return null; }
+}
+''')
         m = directory / "manager"
         (m / "modules").mkdir(parents=True)
         (m / "manager.sh").write_text('MANAGER_VERSION="1.0.106"\nMANAGER_REPOSITORY="https://github.com/adriedsonlemoz/TermuxManager"\n')
@@ -62,14 +75,20 @@ class TermuxInstaller {
     def test_integration_and_origin_patch(self):
         with tempfile.TemporaryDirectory() as temp:
             app, manager = self.make_fixture(Path(temp))
-            integrate.integrate(app, manager, 5)
+            integrate.integrate(app, manager, 6)
+            keys = (app / integrate.EXTRA_KEYS).read_text()
+            self.assertIn('extrakeys = withSessionsButton(extrakeys);', keys)
+            self.assertIn('sessionsButton.put("key", "DRAWER")', keys)
+            self.assertIn('sessionsButton.put("display", "SESS")', keys)
+            self.assertIn('return configuredKeys; // User already configured', keys)
+            self.assertIn('new ExtraKeysInfo(withSessionsButton(TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS)', keys)
             installer = (app / integrate.INSTALLER).read_text()
             self.assertIn('TermuxManagerBundle.install(activity);', installer)
             self.assertEqual(installer.count('TermuxManagerBundle.install(activity);'), 2)
             self.assertIn('tm-manager-existing-prefix', installer)
             gradle = (app / 'app/build.gradle').read_text()
-            self.assertIn('versionCode 118005', gradle)
-            self.assertIn('versionName "0.118.0+tm.5"', gradle)
+            self.assertIn('versionCode 118006', gradle)
+            self.assertIn('versionName "0.118.0+tm.6"', gradle)
             self.assertIn('Termux Manager', (app/'app/src/main/res/values/strings.xml').read_text())
             self.assertIn('TM_KEYSTORE_FILE', gradle)
             self.assertIn('termux_manager_toolbar_background', (app/'app/src/main/res/layout/activity_termux.xml').read_text())
@@ -87,7 +106,7 @@ class TermuxInstaller {
                 for n, digest in m['files'].items():
                     self.assertEqual(hashlib.sha256(z.read(n)).hexdigest(),digest)
             with self.assertRaises(RuntimeError):
-                integrate.integrate(app, manager, 5)  # refuse double patch
+                integrate.integrate(app, manager, 6)  # refuse double patch
 
     def test_real_133_bundle_integration_preserves_visual_and_features(self):
         # Exercises the actual verified release, not only the synthetic 1.0.106 fixture.
@@ -100,7 +119,9 @@ class TermuxInstaller {
                 self.assertTrue(all(not Path(name).is_absolute() and ".." not in Path(name).parts
                                     for name in archive.namelist()))
                 archive.extractall(manager)
-            integrate.integrate(app, manager, 5)
+            integrate.integrate(app, manager, 6)
+            self.assertIn('withSessionsButton(extrakeys)',
+                          (app / integrate.EXTRA_KEYS).read_text())
             self.assertIn('termux_manager_toolbar_background',
                           (app / 'app/src/main/res/layout/activity_termux.xml').read_text())
             index = dict(line.split('\t') for line in (app / integrate.INDEX_ASSET).read_text().splitlines())
@@ -117,6 +138,30 @@ class TermuxInstaller {
                 for name, digest in index.items():
                     self.assertEqual(hashlib.sha256(bundled.read(name)).hexdigest(), digest)
 
+    def test_shortcut_patch_aborts_on_unrecognized_upstream(self):
+        with tempfile.TemporaryDirectory() as temp:
+            app, manager = self.make_fixture(Path(temp))
+            source = app / integrate.EXTRA_KEYS
+            source.write_text(source.read_text().replace('import org.json.JSONException;', '// changed upstream'))
+            original = (app / integrate.INSTALLER).read_bytes()
+            with self.assertRaisesRegex(RuntimeError, 'extra-keys JSON imports'):
+                integrate.integrate(app, manager, 6)
+            self.assertEqual((app / integrate.INSTALLER).read_bytes(), original)
+            self.assertNotIn('withSessionsButton', source.read_text())
+            self.assertFalse((app / integrate.ASSET).exists())
+
+    def test_shortcut_patch_applies_exactly_once(self):
+        baseline = """import org.json.JSONException;
+            String extraKeysStyle = (String) mActivity.getProperties().getInternalPropertyValue(TermuxPropertyConstants.KEY_EXTRA_KEYS_STYLE, true);
+    mExtraKeysInfo = new ExtraKeysInfo(TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS, TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_STYLE, ExtraKeysConstants.CONTROL_CHARS_ALIASES);
+    public ExtraKeysInfo getExtraKeysInfo() {"""
+        modified = integrate.add_sessions_button_to_extra_keys_java(baseline)
+        self.assertEqual(modified.count('extrakeys = withSessionsButton(extrakeys);'), 1)
+        self.assertEqual(modified.count('private static String withSessionsButton'), 1)
+        self.assertIn('rows.getJSONArray(0).put(sessionsButton)', modified)
+        with self.assertRaises(RuntimeError):
+            integrate.add_sessions_button_to_extra_keys_java(modified)
+
     def test_mismatch_aborts_and_preserves_upstream(self):
         with tempfile.TemporaryDirectory() as temp:
             app, manager = self.make_fixture(Path(temp))
@@ -131,7 +176,7 @@ class TermuxInstaller {
         with tempfile.TemporaryDirectory() as temp:
             app, manager = self.make_fixture(Path(temp))
             (manager / 'nao_listado.sh').write_text('echo warning')
-            integrate.integrate(app, manager, 5)
+            integrate.integrate(app, manager, 6)
             with zipfile.ZipFile(app / integrate.ASSET) as z:
                 self.assertNotIn('nao_listado.sh', z.namelist())
 
@@ -142,7 +187,7 @@ class TermuxInstaller {
             gradle.write_text(gradle.read_text().replace('"0.118.0"', '"bad-version"'))
             original = (app / integrate.INSTALLER).read_bytes()
             with self.assertRaisesRegex(RuntimeError, 'versionName'):
-                integrate.integrate(app, manager, 5)
+                integrate.integrate(app, manager, 6)
             self.assertEqual((app / integrate.INSTALLER).read_bytes(), original)
             self.assertFalse((app / integrate.ASSET).exists())
             self.assertFalse((app / integrate.INDEX_ASSET).exists())

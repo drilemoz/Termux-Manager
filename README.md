@@ -1,4 +1,4 @@
-# Termux Manager | 0.1.0-alpha.5
+# Termux Manager | 0.1.0-alpha.6
 
 Projeto Android para gerar, pelo GitHub Actions, um APK privado do **Termux** com **TermuxManager 1.0.133** incorporado, nome de aplicativo **Termux Manager**, ícone azul de terminal + engrenagem e aparência padrão **PowerShell clássico**.
 
@@ -6,10 +6,10 @@ Projeto Android para gerar, pelo GitHub Actions, um APK privado do **Termux** co
 
 - **Nome visível no Android:** Termux Manager, inclusive traduções locais que declararem `application_name`.
 - **Package ID:** `com.termux` (mantido obrigatoriamente para compatibilidade com o bootstrap e caminhos Linux).
-- **Versão da integração:** `0.1.0-alpha.5` / `BUILD_NUMBER=5`.
+- **Versão da integração:** `0.1.0-alpha.6` / `BUILD_NUMBER=6`.
 - **TermuxManager incorporado:** snapshot `vendor/TermuxManager-v1.0.133.zip` verificado por SHA-256 `d411f6f1d3cd8b641c7f1366805df8b1f7ab650ae0c3a2d6343a418a002cf510`, fornecido pelo usuário e confrontado com o manifesto atual do repositório GitHub; MANIFEST declara 1.0.133 e teve os 147 hashes confirmados em 19/10/2026.
 - **Termux base:** `termux/termux-app` no commit `8629e632fcb95da272221be327db653fb24befe9`, com `versionName` upstream `0.118.0` e `versionCode` upstream `118`, verificados no código.
-- **APK versionName:** `0.118.0+tm.5`; **versionCode:** `118005` (calculado na integração). Atualização in-place exige também mesma assinatura e package ID.
+- **APK versionName:** `0.118.0+tm.6`; **versionCode:** `118006` (calculado na integração). Atualização in-place exige também mesma assinatura e package ID.
 
 O código-fonte completo do **Termux Android** não está neste ZIP: o GitHub Actions baixa esse repositório no commit fixo. O TermuxManager 1.0.133 **já está dentro do ZIP**, no diretório `vendor/`, e é validado por SHA-256 no workflow e pelos hashes individuais do `MANIFEST.json`. Novas releases do Manager não entram automaticamente; é necessário revisar e substituir o snapshot verificado.
 
@@ -22,6 +22,9 @@ O código-fonte completo do **Termux Android** não está neste ZIP: o GitHub Ac
 - Para voltar ao visual de origem, altere ou exclua `~/.termux/colors.properties` e abra nova sessão/recarregue o terminal. Em uma instalação existente com tema personalizado, **o tema azul não sobrescreve as cores já definidas**.
 
 ## Barra de teclas, Fish e progresso do apt
+
+- **Novo botão SESS** ao final da primeira fileira de teclas extras (ESC, HOME etc.). Um toque abre ou fecha a gaveta nativa com as sessões abertas do Termux, sem exigir gesto da borda esquerda; na gaveta continuam disponíveis seleção, criação e gerenciamento de sessões. A ação nativa `DRAWER` é reutilizada, sem scripts, permissões nem comandos de shell extras.
+- O atalho é acrescentado em memória à barra atual, inclusive se `extra-keys` estiver personalizado, sem reescrever `~/.termux/termux.properties`. Caso a configuração já tenha um `DRAWER`, não cria botão duplicado. A primeira fileira terá uma tecla a mais e poderá ficar mais compacta em telas estreitas; requer teste visual no dispositivo.
 
 - A barra de teclas extras do Android acompanha a cor azul `#012456`, por substituição controlada de um único recurso `activity_termux.xml` de um commit fixo. O teclado virtual do Android (SwiftKey/Gboard) não é modificado.
 - O Manager 1.0.133 oferece Fish, sugestões e `chsh`. Em uma **nova configuração inicial**, pergunta uma única vez, com resposta padrão Sim, se o Fish deve se tornar padrão; em atualizações de instalações já concluídas, não muda o shell automaticamente.
